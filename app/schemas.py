@@ -22,6 +22,7 @@ class MovieOut(BaseModel):
     added_by: str
     watched: bool
     votes: int
+    poster_url: str | None = None  # None -> frontend draws a fallback poster card
 
 
 class PickOut(BaseModel):

@@ -15,10 +15,11 @@ Endpoints (see /docs for the auto-generated Swagger UI):
 """
 
 import logging
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Response, status
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Response, status
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -27,7 +28,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from . import __version__
-from .database import Base, SessionLocal, engine, get_db
+from .database import Base, SessionLocal, add_missing_columns, engine, get_db
 from .metrics import (
     MOVIES_UNWATCHED,
     PICKS_MADE,
@@ -37,6 +38,7 @@ from .metrics import (
 )
 from .models import Movie, Pick, Review, Vote
 from .picker import weighted_pick
+from .posters import fill_posters
 from .ratings import RATING_SCALE, describe
 from .schemas import (
     MovieCreate,
@@ -61,8 +63,13 @@ async def lifespan(_: FastAPI):
     # Runs once at startup. create_all is fine for a small project;
     # a bigger one would use Alembic migrations instead.
     Base.metadata.create_all(engine)
+    for column in add_missing_columns(engine):
+        log.info("added missing column %s", column)
     with SessionLocal() as db:
         added = seed_movies(db)
+    # Fetch posters in a background thread so startup (and /health) isn't
+    # blocked by ~20 web requests. Movies show fallback cards until it's done.
+    threading.Thread(target=fill_posters, args=(SessionLocal,), daemon=True).start()
     log.info("startup complete, seeded %d movies", added)
     yield
 
@@ -92,6 +99,7 @@ def to_out(movie: Movie, votes: int) -> MovieOut:
         added_by=movie.added_by,
         watched=movie.watched,
         votes=votes,
+        poster_url=movie.poster_url,
     )
 
 
@@ -177,7 +185,7 @@ def list_movies(include_watched: bool = False, db: Session = Depends(get_db)):
 
 
 @app.post("/api/movies", response_model=MovieOut, status_code=status.HTTP_201_CREATED)
-def add_movie(payload: MovieCreate, db: Session = Depends(get_db)):
+def add_movie(payload: MovieCreate, background: BackgroundTasks, db: Session = Depends(get_db)):
     title = payload.title.strip()
     exists = db.scalar(select(Movie).where(func.lower(Movie.title) == title.lower()))
     if exists:
@@ -186,6 +194,8 @@ def add_movie(payload: MovieCreate, db: Session = Depends(get_db)):
     db.add(movie)
     db.commit()
     log.info("movie added: %s by %s", movie.title, movie.added_by)
+    # Look up the poster AFTER responding, so adding a movie stays instant.
+    background.add_task(fill_posters, SessionLocal, [movie.id])
     return to_out(movie, 0)
 
 

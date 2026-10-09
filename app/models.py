@@ -28,6 +28,10 @@ class Movie(Base):
     year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     added_by: Mapped[str] = mapped_column(String(50), default="seed")
     watched: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Poster cache (see app/posters.py). poster_checked=True means "we looked";
+    # poster_url may still be None if no poster exists -> frontend fallback card.
+    poster_url: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None)
+    poster_checked: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     votes: Mapped[list["Vote"]] = relationship(back_populates="movie", cascade="all, delete-orphan")

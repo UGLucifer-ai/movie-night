@@ -7,6 +7,7 @@ never touch a real database and every test starts from a clean, seeded state.
 import os
 
 os.environ["DATABASE_URL"] = "sqlite://"
+os.environ["POSTER_LOOKUP"] = "off"  # tests never hit the real network
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
