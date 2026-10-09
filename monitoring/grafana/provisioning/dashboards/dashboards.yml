@@ -1,0 +1,9 @@
+# Load every dashboard JSON file from /var/lib/grafana/dashboards on startup.
+apiVersion: 1
+providers:
+  - name: movie-night
+    folder: Movie Night
+    type: file
+    disableDeletion: true
+    options:
+      path: /var/lib/grafana/dashboards

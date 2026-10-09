@@ -1,0 +1,15 @@
+# Prometheus pulls ("scrapes") metrics from targets on a schedule.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: movie-night
+    metrics_path: /metrics
+    static_configs:
+      # "app" is the service name in docker-compose.yml; Docker's internal DNS resolves it.
+      - targets: ["app:8000"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
