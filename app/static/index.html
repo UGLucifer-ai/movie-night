@@ -2,52 +2,65 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Movie Night</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07060b">
+  <title>Movie Right!!</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <header>
-    <h1>🎬 Movie Night</h1>
-    <p>Suggest films, vote, and let the app pick tonight's movie.</p>
+  <!-- Cinematic background layers (purely decorative, hidden from screen readers) -->
+  <div class="backdrop" aria-hidden="true">
+    <div id="poster-mosaic" class="poster-mosaic"></div>
+    <div class="aurora"></div>
+    <div class="beam beam-left"></div>
+    <div class="beam beam-right"></div>
+    <div class="dust"></div>
+    <div class="grain"></div>
+    <div class="vignette"></div>
+  </div>
+
+  <header class="marquee">
+    <div class="marquee-sign">
+      <p class="marquee-kicker">Now showing · tonight only</p>
+      <h1 class="marquee-title">Movie <span>Right!!</span></h1>
+      <p class="marquee-sub">Only the right movies make the cut</p>
+    </div>
   </header>
 
   <main>
-    <section class="card">
-      <label for="voter">Your name</label>
-      <input id="voter" placeholder="e.g. Uday" maxlength="50">
-    </section>
-
-    <section class="card">
-      <h2>Tonight's pick</h2>
-      <button id="pick-btn" class="primary">Pick tonight's movie</button>
+    <section class="panel controls">
+      <div class="field">
+        <label for="voter">Your name</label>
+        <input id="voter" placeholder="e.g. Uday" maxlength="50" autocomplete="nickname">
+      </div>
+      <button id="pick-btn" class="pick-btn">🎬 Roll the reel — pick tonight's movie</button>
       <p id="pick-result" class="pick-result" aria-live="polite"></p>
     </section>
 
-    <section class="card">
+    <section class="panel">
       <h2>Suggest a movie</h2>
-      <form id="add-form">
-        <input id="title" placeholder="Title" required maxlength="200">
-        <input id="year" type="number" placeholder="Year" min="1888" max="2100">
-        <button type="submit">Add</button>
+      <form id="add-form" class="add-form">
+        <input id="title" placeholder="Title" required maxlength="200" aria-label="Title">
+        <input id="year" type="number" placeholder="Year" min="1888" max="2100" aria-label="Year">
+        <button type="submit">Add to the lineup</button>
       </form>
-    </section>
-
-    <section class="card">
-      <h2>The list</h2>
       <p id="message" class="message" aria-live="polite"></p>
-      <ul id="movie-list" class="movie-list"></ul>
     </section>
 
-    <section class="card">
-      <h2>Past picks</h2>
-      <ul id="history" class="history"></ul>
+    <section class="lineup">
+      <h2 class="section-title">The lineup <span class="hint">vote for what you want to watch</span></h2>
+      <ul id="movie-list" class="poster-grid"></ul>
     </section>
 
-    <section class="card">
+    <section class="lineup">
+      <h2 class="section-title">Past picks</h2>
+      <ul id="history" class="history-strip"></ul>
+    </section>
+
+    <section class="panel">
       <h2>Rate &amp; review a picked movie</h2>
       <p class="hint">Only movies the app actually picked can be reviewed.</p>
-      <form id="review-form">
+      <form id="review-form" class="review-form">
         <select id="review-pick" required aria-label="Picked movie"></select>
         <fieldset id="review-rating" class="rating-picker">
           <legend>Your rating</legend>
@@ -63,7 +76,28 @@
     </section>
   </main>
 
-  <footer>Built by Uday Charan Gopi · <a href="/docs">API docs</a></footer>
+  <footer>
+    Built by Uday Charan Gopi · <a href="/docs">API docs</a> ·
+    Posters via <a href="https://en.wikipedia.org/" rel="noopener">Wikipedia</a> (rights belong to their owners)
+  </footer>
+
+  <!-- The big reveal: curtains + spotlight, shown when a movie is picked -->
+  <div id="reveal" class="reveal" role="dialog" aria-modal="true" aria-labelledby="reveal-title" hidden>
+    <div class="reveal-stage">
+      <div class="reveal-spotlight"></div>
+      <div id="reveal-shuffle" class="reveal-shuffle" aria-hidden="true"></div>
+      <div class="reveal-winner">
+        <p class="reveal-kicker">Tonight's feature</p>
+        <div id="reveal-poster" class="reveal-poster"></div>
+        <h2 id="reveal-title" class="reveal-title"></h2>
+        <p id="reveal-meta" class="reveal-meta"></p>
+        <button id="reveal-close" class="reveal-close">Grab the popcorn 🍿</button>
+      </div>
+    </div>
+    <div class="curtain curtain-left" aria-hidden="true"></div>
+    <div class="curtain curtain-right" aria-hidden="true"></div>
+  </div>
+
   <script src="/static/app.js"></script>
 </body>
 </html>

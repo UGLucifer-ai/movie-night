@@ -26,7 +26,7 @@ def test_seed_data_loaded(client):
 def test_frontend_is_served(client):
     res = client.get("/")
     assert res.status_code == 200
-    assert "Movie Night" in res.text
+    assert "Movie Right!!" in res.text
 
 
 # ----- adding movies -----
