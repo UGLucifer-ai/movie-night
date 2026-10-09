@@ -74,7 +74,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="Movie Night", version=__version__, lifespan=lifespan)
+app = FastAPI(title="Movie Right!!", version=__version__, lifespan=lifespan)
 app.add_middleware(MetricsMiddleware)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
