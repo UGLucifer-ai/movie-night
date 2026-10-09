@@ -1,0 +1,14 @@
+# Render Blueprint: free demo hosting for Movie Night.
+# Uses the same Dockerfile as local/CI. The demo uses SQLite, so data
+# resets whenever Render restarts the service (fine for a portfolio demo).
+services:
+  - type: web
+    name: movie-night
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "8000"
