@@ -3,9 +3,18 @@
 Add these after running `docker compose up --build` locally, then reference
 them from the main README:
 
+Already captured (headless Chrome against a local run):
+
+| File | Shows |
+| --- | --- |
+| `desktop-home.png` | Home page at 1440px: marquee, poster grid (20 Wikipedia posters + 1 fallback card), past picks, reviews |
+| `pick-reveal.png` | The curtain + spotlight reveal after clicking "Roll the reel" |
+| `mobile.png` | 390×844 mobile layout (iPhone-size) |
+
+Still to add:
+
 | File | What to capture |
 | --- | --- |
-| `app.png` | The Movie Night page at http://localhost:8000 after a few votes and one pick |
 | `grafana-dashboard.png` | Grafana → Dashboards → Movie Night folder → Movie Night (http://localhost:3000) |
 | `prometheus-targets.png` | Prometheus → Status → Targets showing `movie-night` as UP (http://localhost:9090/targets) |
 | `github-actions.png` | The green CI run on GitHub (Actions tab) |

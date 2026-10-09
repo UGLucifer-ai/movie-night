@@ -10,8 +10,9 @@ infrastructure as code.
 
 **Author:** Uday Charan Gopi · **License:** MIT
 
-![CI](https://github.com/OWNER/movie-night/actions/workflows/ci.yml/badge.svg)
-<!-- Replace OWNER with your GitHub username after the first push. -->
+![CI](https://github.com/UGLucifer-ai/movie-night/actions/workflows/ci.yml/badge.svg)
+
+![Movie Night home: poster grid in a dark theater](docs/screenshots/desktop-home.png)
 
 ---
 
@@ -49,6 +50,13 @@ flowchart LR
 - Vote (one vote per person per movie, enforced by a database constraint)
 - **Pick tonight's movie**: weighted random — 3 votes = 3× the chance of 1 vote
 - Picked movies are marked watched and kept in a history
+- **Movie posters** on every card, looked up automatically (see *Posters* below),
+  with a generated gradient poster card whenever no image is available
+- **Cinematic UI**: animated theater backdrop (blurred poster mosaic, moving
+  gradient, sweeping spotlight beams, drifting dust, film grain), a neon
+  marquee title with chasing bulbs, poster grid with hover lift + glow, and a
+  **curtain + spotlight reveal** when tonight's movie is picked. Pure CSS and
+  vanilla JS, mobile-friendly, and calm for `prefers-reduced-motion` users.
 - **Rate & review** picked movies only, on a themed scale (stored as integers 1–5):
 
 | Value | Symbol | Label | Animation (pure CSS, on hover + select) |
@@ -62,6 +70,25 @@ flowchart LR
   The average rating is shown with the matching symbol (rounded to the nearest
   step, e.g. 4.3 → 🎬 Great). Animations are switched off for users with
   `prefers-reduced-motion`.
+
+## Posters
+
+Posters come from **[Wikipedia](https://en.wikipedia.org/)** via the public
+MediaWiki API — no API key needed. For each film the app tries
+`"Title (Year film)"`, then `"Title (film)"`, then `"Title"`, and only accepts
+a page whose description mentions "film" and the year (so *Casablanca* the
+city never shows up). All 20 seed films resolve.
+
+- Poster images are © their respective studios/distributors and are shown
+  via Wikipedia/Wikimedia for identification only.
+- Optional: set `TMDB_API_KEY` or `OMDB_API_KEY` to try those sources first.
+  Not required for the demo.
+- Results are cached in memory **and** in the database (`movies.poster_url`,
+  `movies.poster_checked`), so each film is looked up at most once.
+- Lookups run in the background (startup backfill, and after a film is
+  added), so they never slow down a request or the health check.
+- `POSTER_LOOKUP=off` disables all network lookups (the test suite does this).
+- No poster or a broken image → a styled fallback card (gradient + title + year).
 
 ## Quick start
 
@@ -120,7 +147,7 @@ reviewed" is guaranteed by the data model: no pick → 404.
 
 **`.github/workflows/ci.yml`** — on every push and pull request:
 
-1. **Lint & test**: `ruff check`, `ruff format --check`, `pytest` (40+ tests).
+1. **Lint & test**: `ruff check`, `ruff format --check`, `pytest` (55+ tests).
 2. **Docker build & scan**: builds the image, runs it and curls `/health` and
    `/metrics` (smoke test), then scans it with **Trivy**. HIGH/CRITICAL are
    reported; a fixable CRITICAL fails the build.
@@ -155,13 +182,12 @@ latency p50/p95, votes-picks-reviews over time, and 4xx/5xx error rate.
 
 ### Screenshots
 
-_Placeholders — see [`docs/screenshots/README.md`](docs/screenshots/README.md)
-for what to capture._
+| Pick reveal | Mobile |
+| --- | --- |
+| ![Curtain and spotlight reveal of tonight's movie](docs/screenshots/pick-reveal.png) | ![Mobile layout](docs/screenshots/mobile.png) |
 
-- `docs/screenshots/app.png` — the app with votes, a pick and reviews
-- `docs/screenshots/grafana-dashboard.png` — the Movie Night dashboard
-- `docs/screenshots/prometheus-targets.png` — scrape target UP
-- `docs/screenshots/github-actions.png` — green CI run
+Still to capture (see [`docs/screenshots/README.md`](docs/screenshots/README.md)):
+`grafana-dashboard.png`, `prometheus-targets.png`, `github-actions.png`.
 
 ## Deploying to AWS (optional)
 
@@ -208,14 +234,17 @@ settings) so EC2 can pull it without credentials.
   URLs, to avoid a Prometheus cardinality explosion.
 - **Multi-stage, non-root Docker image** with a `HEALTHCHECK`.
 - **Gate CD on CI** with `workflow_run`, and push the exact commit CI tested.
-- **No migrations tool yet** — `create_all` at startup. Alembic would be the
-  next step (see `docs/WALKTHROUGH.md`).
+- **Posters cached, never blocking.** Background lookup + DB/in-memory cache +
+  a frontend fallback card means the app works fully offline and stays fast.
+- **No migrations tool yet** — `create_all` at startup plus a tiny
+  `add_missing_columns()` for the poster columns. Alembic would be the next
+  step (see `docs/WALKTHROUGH.md`).
 
 ## Project layout
 
 ```
-app/            FastAPI app, models, pick logic, metrics, rating scale, static frontend
-tests/          pytest suite (picker, API, reviews, ratings, metrics)
+app/            FastAPI app, models, pick logic, posters, metrics, rating scale, static frontend
+tests/          pytest suite (picker, API, reviews, ratings, posters, metrics)
 monitoring/     Prometheus config + Grafana provisioning and dashboard JSON
 infra/          Terraform for a single-EC2 AWS deploy (never applied by CI)
 .github/        CI and CD workflows

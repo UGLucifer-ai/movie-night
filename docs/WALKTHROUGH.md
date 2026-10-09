@@ -49,6 +49,14 @@ Marks `app` as a Python package and holds the version (`0.1.0`), which
 - `get_db()` is a **FastAPI dependency**: opens one session per request and
   always closes it (`try/finally`).
 
+- `add_missing_columns()` — `create_all` only creates **new** tables; it never
+  adds columns to tables that already exist. When the poster columns were
+  added, existing databases (like the Postgres volume from docker compose)
+  needed them too. This function checks the real columns with SQLAlchemy's
+  `inspect()` and runs `ALTER TABLE ... ADD COLUMN` only for missing ones. It's
+  **idempotent** (safe to run on every startup) and a mini version of what
+  Alembic does properly.
+
 **Why:** the same code runs against Postgres or SQLite. Config comes from the
 environment — the [12-factor app](https://12factor.net/config) rule.
 
@@ -56,7 +64,7 @@ environment — the [12-factor app](https://12factor.net/config) rule.
 
 | Table | Columns | Rules |
 | --- | --- | --- |
-| `movies` | id, title, year, added_by, watched, created_at | title unique |
+| `movies` | id, title, year, added_by, watched, poster_url, poster_checked, created_at | title unique |
 | `votes` | id, movie_id, voter, created_at | **UNIQUE(movie_id, voter)** — no double voting |
 | `picks` | id, movie_id, votes_at_pick, picked_at | one row per movie night |
 | `reviews` | id, pick_id, reviewer, rating, comment, created_at | **UNIQUE(pick_id, reviewer)**, **CHECK(rating BETWEEN 1 AND 5)** |
@@ -109,6 +117,52 @@ symbol + label by rounding half up and clamping to 1–5 (4.3 → 🎬, 4.5 → 
 **Why integers?** Averages, sorting, validation and SQL all stay trivial.
 The fun part is just presentation, kept in one place; the frontend reads it
 from `GET /api/rating-scale`, so the API and UI can never disagree.
+
+### `app/posters.py` — poster lookup and caching
+**Source:** Wikipedia's public MediaWiki API (no key). We ask for the lead
+image of the film's article (`prop=pageimages`, `pilicense=any` because most
+posters are non-free "fair use" images, plus `prop=description`).
+
+**Finding the right article.** Titles are ambiguous ("Casablanca" is a city,
+"Psycho" has a 1998 remake), so we try, in order:
+1. `"Casablanca (1942 film)"` 2. `"Casablanca (film)"` 3. `"Casablanca"`
+
+and accept a page only if its short description contains "film" **and** the
+year (e.g. "1942 film by Michael Curtiz"). `redirects=1` lets Wikipedia follow
+renamed pages. Result for the 20 seed films: **20/20 posters found**.
+
+**Optional sources.** If `TMDB_API_KEY` or `OMDB_API_KEY` is set, those are
+tried first. Nothing is required for the demo.
+
+**Caching — two layers:**
+1. **In memory** (`_cache` dict keyed by normalised title + year, protected by
+   a `threading.Lock` because lookups run in background threads). Repeat
+   lookups never hit the network while the process runs.
+2. **In the database**: `poster_url` (the URL or NULL) and `poster_checked`
+   ("we already looked"). After a restart we skip films we've resolved.
+   Misses are remembered too, so a film with no poster isn't looked up forever.
+
+**Errors are not cached.** `find_poster()` returns `(url, definitive)`. If a
+source timed out or the network was down, `definitive` is False: nothing is
+cached and `poster_checked` stays False, so the next startup retries. A
+poster is nice-to-have, so `find_poster` never raises.
+
+**When lookups run (never on the request path):**
+- At startup, a **daemon thread** backfills any unchecked movies (the 20 seeds
+  on a fresh DB). Startup and `/health` aren't blocked — important on Render,
+  which health-checks the app as soon as it boots.
+- After `POST /api/movies`, FastAPI's **`BackgroundTasks`** looks up the new
+  film after the response is sent, so adding a movie stays instant. The
+  frontend re-fetches the list a few seconds later to show the poster.
+
+**Safety:** all network access goes through one function, `http_get_json()`,
+which only allows `https://` URLs, sends a descriptive `User-Agent`
+(Wikipedia's API etiquette), and uses a 5 s timeout. Having one choke point
+also makes it trivial to mock in tests. `POSTER_LOOKUP=off` disables lookups
+entirely (the test suite sets it).
+
+**Licensing note:** posters are © their studios; we hot-link Wikimedia's
+copy for identification and say so in the README and page footer.
 
 ### `app/metrics.py` — Prometheus metrics
 - `movienight_http_requests_total{method,path,status}` — **Counter**
@@ -166,16 +220,55 @@ Request (voting for a watched movie), 404 Not Found, 409 Conflict, 422
 validation error, 503 unhealthy.
 
 ### `app/static/` — the frontend
-- `index.html` — sections: your name, tonight's pick, suggest, the list,
-  past picks, and **Rate & review**.
-- `app.js` — plain JavaScript, no framework. `fetch()` calls the API and
-  redraws lists. User text is always inserted with **`textContent`, never
-  `innerHTML`**, so a movie titled `<script>…` can't run code (**XSS**
-  protection). Your name is remembered in `localStorage`.
-- The rating picker is built from `/api/rating-scale`: real radio buttons
-  (keyboard and screen-reader friendly) visually hidden, with a big symbol as
-  each label. Hovering shows the label ("🍿 3 – Fine"); selecting keeps it.
-- `style.css` — dark theme + the rating animations.
+Plain HTML/CSS/JS, no framework, no build step, no external fonts or libraries.
+
+- `index.html` — decorative background layers (marked `aria-hidden`), the
+  marquee header, your name + the **Roll the reel** button, suggest form, the
+  **lineup** poster grid, past picks strip, rate & review, and the hidden
+  **reveal** dialog (curtains + spotlight).
+- `app.js`:
+  - `fetch()` calls the API and redraws lists. User text is always inserted
+    with **`textContent`, never `innerHTML`**, so a movie titled `<script>…`
+    can't run code (**XSS** protection). Your name is kept in `localStorage`.
+  - **Posters:** `posterFor(movie)` returns an `<img>` with
+    `loading="lazy"` (only downloaded when near the screen), `decoding="async"`
+    and descriptive **alt text**. If `poster_url` is empty, or the image
+    fires `error`, it's replaced by `fallbackPoster(movie)`: a gradient card
+    with the title and year. The gradient colour comes from a hash of the
+    title, so the same film always gets the same colours.
+  - `refreshWhilePostersLoad()` re-fetches the list a few times while posters
+    are still being looked up in the background.
+  - `paintMosaic()` fills the blurred background mosaic with the posters.
+  - **Pick reveal:** call the API first (so the result is real), then open
+    the overlay with the curtains closed, flicker through posters behind them
+    with a slowing "drumroll", then add `.open` — CSS slides the curtains
+    apart, fades in the spotlight and pops the winner in. Close with the
+    button, Escape, or clicking outside; focus returns to where you were.
+    With reduced motion, the shuffle is skipped and the winner shows at once.
+  - The rating picker is built from `/api/rating-scale`: real radio buttons
+    (keyboard and screen-reader friendly) visually hidden, with a big symbol
+    as each label. Hovering shows the label ("🍿 3 – Fine"); selecting keeps it.
+- `style.css` — the theater look:
+  - **Backdrop layers** (fixed, behind everything): blurred poster mosaic
+    drifting slowly, an "aurora" of radial gradients moving over 28 s, two
+    spotlight beams (`clip-path` triangles) sweeping, dust particles (one
+    element with several tiny radial gradients, scrolling), film grain (an
+    inline SVG `feTurbulence` noise texture jittered with `steps()`), and a
+    vignette.
+  - **Marquee:** neon text via stacked `text-shadow`s with an occasional
+    flicker; chasing bulbs are a dotted border made of repeating radial
+    gradients whose position steps back and forth.
+  - **Poster grid:** CSS Grid `repeat(auto-fill, minmax(160px, 1fr))`; cards
+    lift, scale and glow on hover with a glossy shine sweep, and fade in with
+    a staggered delay (`--i` set per card).
+  - **Performance:** only `transform`, `opacity` and `filter` animate — the
+    browser can do these on the GPU without re-laying-out the page.
+  - **Mobile** (`max-width: 640px`): single-column controls, a 2-column poster
+    grid, full-width buttons, no hover-lift on touch, horizontally scrolling
+    past picks with scroll-snap.
+  - **Reduced motion:** a `prefers-reduced-motion: reduce` block stops every
+    background animation, the marquee flicker, card entrances, the curtains
+    and the rating animations. The reveal still appears, just instantly.
 
 #### Rating animations (pure CSS)
 No animation library — just CSS `@keyframes`. Each symbol animates on
@@ -200,10 +293,10 @@ layout recalculation).
 
 ## 3. Tests (`tests/`)
 
-Run with `pytest -v`. 40+ tests, under a second.
+Run with `pytest -v`. 55+ tests, about a second.
 
-- `conftest.py` sets `DATABASE_URL=sqlite://` (in-memory) **before** importing
-  the app, then for each test drops/creates tables and re-seeds. Every test
+- `conftest.py` sets `DATABASE_URL=sqlite://` (in-memory) and
+  `POSTER_LOOKUP=off` **before** importing the app, then for each test drops/creates tables and re-seeds. Every test
   starts clean and nothing touches a real database.
 - `test_picker.py` — unit tests of the pure pick function: empty list, single
   item, zero-vote movies skipped, uniform fallback, **3:1 votes ≈ 75%/25%**
@@ -220,6 +313,17 @@ Run with `pytest -v`. 40+ tests, under a second.
   history shows averages, rating stored as integer but returned with symbol,
   and the review counter only counts successful reviews.
 - `test_ratings.py` — the symbol mapping: rounding half up, clamping.
+- `test_posters.py` — **the network is always mocked** with pytest's
+  `monkeypatch`, which swaps `http_get_json` for a fake that returns canned
+  Wikipedia JSON. It covers: finding the poster via the "(1942 film)" article;
+  falling through the candidates and **rejecting the city** of Casablanca;
+  rejecting a film with the wrong year; the in-memory cache (one network call
+  for two lookups); network errors swallowed and **not cached**; optional
+  TMDB used first when its key is set; OMDb's "N/A" ignored; non-https URLs
+  refused; `fill_posters` saving hits **and** misses, leaving movies unchecked
+  after an error, doing nothing when disabled; adding a movie looks up its
+  poster in the background; the API returns `poster_url: null` for the
+  fallback; and `add_missing_columns` upgrading an old table (idempotently).
 - `test_metrics.py` — `/metrics` contains every metric the dashboard uses;
   counters go up after a vote and pick; labels use route templates.
 
@@ -397,14 +501,16 @@ after demos.
 | Votes/reviews as rows + DB constraints | Integrity enforced at the source | More rows than a counter |
 | Reviews tied to picks | "Only picked movies" enforced by the model | Need a pick id to review |
 | Ratings as ints, symbols in one mapping | Simple math; UI reads `/api/rating-scale` | — |
-| `create_all` (no Alembic) | Simple for a portfolio project | Can't evolve existing tables safely |
+| `create_all` (no Alembic) | Simple for a portfolio project | Only `add_missing_columns` for new columns; no renames/data migrations |
+| Wikipedia posters, cached, background | Free, keyless, never blocks requests | Hot-linked images; a few films may not resolve (fallback card) |
+| Pure CSS/vanilla JS UI | Fast, no build step, easy to explain | More hand-written CSS |
 | Route-template metric labels | Avoid cardinality explosion | Lose per-id detail (use logs for that) |
 | Non-root, multi-stage image | Smaller, safer | Slightly longer Dockerfile |
 | CD gated on CI via `workflow_run` | Never publish untested code | Two workflows to understand |
 | Single EC2 with SQLite | Cheapest, simplest | No HA; data lives on one disk |
 
 ### What I'd do next
-1. Alembic migrations.
+1. Alembic migrations (replacing `add_missing_columns`).
 2. Pin all GitHub Actions to SHAs + Dependabot.
 3. Alert rules (e.g. 5xx rate > 1% for 5 min) and Alertmanager.
 4. A deploy step that updates EC2 (or move to ECS Fargate + RDS) on new images.
@@ -489,6 +595,15 @@ locking; alert rules (e.g. 5xx rate, p95 latency, target down) routed through
 Alertmanager; automated deploys of the new image with a rollback path;
 structured logs with request IDs; and Dependabot for dependency and action
 updates.
+
+**Bonus — "How do posters work without slowing the app down?"**
+Wikipedia's API, no key. Lookups never run on the request path: a background
+thread backfills at startup and FastAPI `BackgroundTasks` handles new films
+after the response. Results are cached in memory and in the DB (including
+"no poster" answers), but errors aren't cached so they get retried. All
+network access goes through one https-only function with a timeout, which
+also makes it easy to mock in tests. The frontend lazy-loads images and falls
+back to a generated poster card if there's no URL or the image fails.
 
 **Bonus — "Why are ratings emojis but stored as numbers?"**
 Numbers make averages, validation and queries trivial; the symbols are pure
