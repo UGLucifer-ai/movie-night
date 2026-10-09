@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Movie Night</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>🎬 Movie Night</h1>
+    <p>Suggest films, vote, and let the app pick tonight's movie.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <label for="voter">Your name</label>
+      <input id="voter" placeholder="e.g. Uday" maxlength="50">
+    </section>
+
+    <section class="card">
+      <h2>Tonight's pick</h2>
+      <button id="pick-btn" class="primary">Pick tonight's movie</button>
+      <p id="pick-result" class="pick-result" aria-live="polite"></p>
+    </section>
+
+    <section class="card">
+      <h2>Suggest a movie</h2>
+      <form id="add-form">
+        <input id="title" placeholder="Title" required maxlength="200">
+        <input id="year" type="number" placeholder="Year" min="1888" max="2100">
+        <button type="submit">Add</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>The list</h2>
+      <p id="message" class="message" aria-live="polite"></p>
+      <ul id="movie-list" class="movie-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Past picks</h2>
+      <ul id="history" class="history"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Rate &amp; review a picked movie</h2>
+      <p class="hint">Only movies the app actually picked can be reviewed.</p>
+      <form id="review-form">
+        <select id="review-pick" required aria-label="Picked movie"></select>
+        <fieldset id="review-rating" class="rating-picker">
+          <legend>Your rating</legend>
+          <!-- Filled in by app.js from GET /api/rating-scale (💩 1 .. 🎞️💥 5) -->
+        </fieldset>
+        <span id="rating-label" class="rating-label" aria-live="polite">Pick a rating</span>
+        <textarea id="review-comment" maxlength="500" placeholder="Short review (optional)"></textarea>
+        <button type="submit">Submit review</button>
+      </form>
+      <p id="review-message" class="message" aria-live="polite"></p>
+      <p id="review-summary" class="review-summary"></p>
+      <ul id="review-list" class="reviews"></ul>
+    </section>
+  </main>
+
+  <footer>Built by Uday Charan Gopi · <a href="/docs">API docs</a></footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>

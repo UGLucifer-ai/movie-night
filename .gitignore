@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Local SQLite database
+*.db
+
+# Terraform: provider downloads, state (may contain secrets), personal vars
+infra/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Local env overrides
+.env

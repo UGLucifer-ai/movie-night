@@ -1,0 +1,141 @@
+:root {
+  --bg: #14141c;
+  --card: #1f1f2b;
+  --text: #ececf1;
+  --muted: #9a9ab0;
+  --accent: #f5c518;
+  --error: #ff6b6b;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+header, main, footer { max-width: 720px; margin: 0 auto; padding: 1rem; }
+header h1 { margin-bottom: 0.25rem; }
+header p, footer { color: var(--muted); }
+footer a { color: var(--accent); }
+.card { background: var(--card); border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+h2 { margin-top: 0; font-size: 1.1rem; }
+label { display: block; margin-bottom: 0.4rem; color: var(--muted); }
+input { background: #2a2a3a; border: 1px solid #3a3a4d; color: var(--text); padding: 0.5rem; border-radius: 8px; }
+#voter, #title { width: 100%; max-width: 320px; }
+#year { width: 100px; }
+form { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+button { background: #34344a; color: var(--text); border: 0; border-radius: 8px; padding: 0.5rem 0.9rem; cursor: pointer; }
+button:hover { background: #45455f; }
+button.primary { background: var(--accent); color: #111; font-weight: 600; }
+.movie-list, .history { list-style: none; padding: 0; margin: 0; }
+.movie-list li { display: grid; grid-template-columns: 1fr auto auto; gap: 0.75rem; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #2c2c3c; }
+.votes { color: var(--muted); font-size: 0.9rem; }
+.history li { padding: 0.35rem 0; color: var(--muted); }
+.pick-result { font-size: 1.2rem; min-height: 1.5rem; }
+.message { min-height: 1.2rem; color: var(--accent); }
+.message.error { color: var(--error); }
+select, textarea { background: #2a2a3a; border: 1px solid #3a3a4d; color: var(--text); padding: 0.5rem; border-radius: 8px; font: inherit; }
+#review-pick { min-width: 220px; }
+textarea { width: 100%; min-height: 4rem; resize: vertical; }
+.hint, .review-summary { color: var(--muted); }
+.review-summary { color: var(--accent); }
+.reviews { list-style: none; padding: 0; margin: 0; }
+.reviews li { padding: 0.4rem 0; border-bottom: 1px solid #2c2c3c; }
+
+/* ---------- themed rating picker: 💩 😴 🍿 🎬 🎞️💥 ----------
+   Pure CSS keyframes, no libraries. Each symbol animates when you HOVER it,
+   and plays once more when you SELECT it (app.js adds the .play class). */
+.rating-picker { border: 0; padding: 0; margin: 0; display: flex; gap: 0.5rem; align-items: center; }
+.rating-picker legend { color: var(--muted); margin-bottom: 0.3rem; }
+/* Hide the real radio buttons but keep them for keyboard + screen readers. */
+.rating-picker input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.rating-option {
+  position: relative; display: inline-block; margin: 0; color: inherit;
+  font-size: 1.8rem; line-height: 1; padding: 0.35rem 0.45rem;
+  border-radius: 10px; border: 2px solid transparent; cursor: pointer;
+}
+.rating-picker input:focus-visible + .rating-option { border-color: #6c6cff; }
+.rating-picker input:checked + .rating-option { border-color: var(--accent); background: #2f2f42; }
+.rating-label { display: inline-block; min-width: 9rem; color: var(--accent); font-weight: 600; }
+
+/* Decorations (stink lines, z's, burst ring) live in ::after, hidden until animating. */
+.rating-option::after { position: absolute; pointer-events: none; opacity: 0; }
+
+/* 1 💩 Crap: wobbles, with little stink lines rising. */
+.rating-1::after { content: "〰〰"; top: -0.55rem; left: 0.1rem; font-size: 0.7rem; color: #9bd36b; letter-spacing: -2px; }
+.rating-1:hover, .rating-1.play { animation: wobble 0.7s ease-in-out; }
+.rating-1:hover::after, .rating-1.play::after { animation: stink 0.9s ease-out; }
+
+/* 2 😴 Boring: slow bob, with z's floating up. */
+.rating-2::after { content: "z z"; top: -0.4rem; right: -0.2rem; font-size: 0.65rem; font-weight: 700; color: #a9b8ff; }
+.rating-2:hover, .rating-2.play { animation: bob 1.6s ease-in-out; }
+.rating-2:hover::after, .rating-2.play::after { animation: float-z 1.6s ease-out; }
+
+/* 3 🍿 Fine: pops and bounces like popcorn. */
+.rating-3:hover, .rating-3.play { animation: pop 0.6s cubic-bezier(0.3, 1.6, 0.5, 1); }
+
+/* 4 🎬 Great: clapperboard snaps shut (quick squash + click). */
+.rating-4:hover, .rating-4.play { animation: snap 0.45s ease-in; transform-origin: bottom left; }
+
+/* 5 🎞️💥 Blew up: reel spins, then bursts with an expanding ring. */
+.rating-5::after { content: ""; inset: -4px; border-radius: 50%; border: 3px solid var(--accent); }
+.rating-5:hover, .rating-5.play { animation: spin-burst 0.9s ease-in-out; }
+.rating-5:hover::after, .rating-5.play::after { animation: burst-ring 0.5s ease-out 0.55s; }
+
+@keyframes wobble {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-12deg); }
+  40% { transform: rotate(10deg); }
+  60% { transform: rotate(-6deg); }
+  80% { transform: rotate(4deg); }
+}
+@keyframes stink {
+  0% { opacity: 0; transform: translateY(4px); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-10px) scaleX(1.2); }
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(5px) rotate(-4deg); }
+}
+@keyframes float-z {
+  0% { opacity: 0; transform: translate(0, 4px) scale(0.6); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(8px, -14px) scale(1.2); }
+}
+@keyframes pop {
+  0% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-12px) scale(1.25, 0.9); }
+  55% { transform: translateY(0) scale(0.9, 1.1); }
+  75% { transform: translateY(-4px) scale(1.05); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes snap {
+  0% { transform: rotate(0); }
+  40% { transform: rotate(-14deg) scale(1.1); }  /* clapper opens */
+  70% { transform: rotate(3deg) scale(0.95); }    /* SNAP shut */
+  100% { transform: rotate(0) scale(1); }
+}
+@keyframes spin-burst {
+  0% { transform: rotate(0) scale(1); }
+  60% { transform: rotate(360deg) scale(1.1); }
+  75% { transform: rotate(360deg) scale(1.4); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+@keyframes burst-ring {
+  from { opacity: 1; transform: scale(0.6); }
+  to { opacity: 0; transform: scale(2.2); }
+}
+
+/* Accessibility: people who ask their OS for less motion get no animations. */
+@media (prefers-reduced-motion: reduce) {
+  .rating-option,
+  .rating-option::after,
+  .rating-option:hover,
+  .rating-option.play,
+  .rating-option:hover::after,
+  .rating-option.play::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

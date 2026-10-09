@@ -1,0 +1,25 @@
+[project]
+name = "movie-night"
+version = "0.1.0"
+description = "Pick tonight's movie by group vote - a DevOps portfolio project"
+authors = [{ name = "Uday Charan Gopi" }]
+license = { text = "MIT" }
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/F = pycodestyle + pyflakes basics, I = import sorting, B = bugbear (common bugs),
+# UP = modern Python syntax, S = basic security checks (bandit rules)
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["B008"]  # FastAPI's Depends() in default args is the intended pattern
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S311"]  # assert is how pytest works; seeded random is fine in tests
+"app/picker.py" = ["S311"]  # random is fine for picking movies, not for crypto
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

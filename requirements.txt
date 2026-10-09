@@ -1,0 +1,5 @@
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+SQLAlchemy==2.1.4
+psycopg2-binary==2.9.13
+prometheus-client==0.26.0
